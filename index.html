@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Goo Sniper: Fever Edition</title>
+    <style>
+        @import url('https://fonts.cdnfonts.com/css/game-of-squids');
+
+        :root { --goo: #00ff88; --p: #ff007f; --t: #00f2ff; --accent: #ff007f; --gold: #ffd700; }
+        
+        body { 
+            margin: 0; background: #000b1a; color: white; 
+            font-family: 'Game Of Squids', sans-serif; 
+            overflow: hidden; touch-action: none; 
+        }
+
+        #ocean { 
+            width: 100vw; height: 100vh; position: relative; overflow: hidden; 
+            background: linear-gradient(180deg, #002d5a 0%, #000b1a 100%);
+            transition: filter 0.3s;
+        }
+
+        .fever-active #ocean { animation: feverBg 0.5s infinite alternate; }
+        @keyframes feverBg { from { filter: hue-rotate(0deg) brightness(1); } to { filter: hue-rotate(20deg) brightness(1.3); } }
+
+        #hud { 
+            position: fixed; top: 0; width: 100%; height: 80px; 
+            background: rgba(0, 15, 40, 0.8); backdrop-filter: blur(8px);
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            z-index: 1000; border-bottom: 3px solid var(--accent);
+        }
+        .hud-stats { display: flex; width: 100%; justify-content: space-around; margin-bottom: 5px; }
+        
+        #fever-bar-container { width: 80%; height: 8px; background: rgba(0,0,0,0.5); border-radius: 4px; overflow: hidden; border: 1px solid var(--t); }
+        #fever-bar { width: 0%; height: 100%; background: linear-gradient(90deg, var(--t), var(--goo)); transition: width 0.3s; }
+        .fever-active #fever-bar { background: var(--gold); box-shadow: 0 0 10px var(--gold); }
+
+        #rod { 
+            position: absolute; bottom: 130px; left: 50%; width: 10px; height: 100px; 
+            background: white; transform-origin: bottom center; 
+            box-shadow: 0 0 15px var(--accent); z-index: 500; border-radius: 10px; 
+        }
+        #hook { 
+            position: absolute; width: 30px; height: 30px; background: var(--accent); 
+            border-radius: 50%; display: none; z-index: 600; 
+            box-shadow: 0 0 20px var(--accent); border: 2px solid white; 
+        }
+
+        .fish { position: absolute; font-size: 35px; will-change: transform; user-select: none; }
+        .gold-fish { filter: drop-shadow(0 0 10px gold); }
+
+        #shop-ui { 
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+            width: 95%; height: 80vh; background: rgba(0, 5, 15, 0.98); border: 3px solid var(--accent); 
+            z-index: 5000; display: none; flex-direction: column;
+        }
+        #shop-tabs { display: flex; overflow-x: auto; padding: 10px; gap: 8px; background: #000; }
+        .tab { flex: 0 0 120px; padding: 10px; background: #111; color: #fff; border: 1px solid #333; font-family: 'Game Of Squids'; font-size: 8px; }
+        .tab.active { background: var(--accent); }
+        
+        #shop-list { flex: 1; overflow-y: auto; padding: 15px; }
+        .item { background: rgba(255,255,255,0.05); padding: 15px; margin-bottom: 10px; border-left: 4px solid var(--accent); display: flex; justify-content: space-between; align-items: center; }
+        
+        .floating-price {
+            position: absolute; font-family: 'Game Of Squids'; font-size: 22px; 
+            animation: floatUp 1s forwards; z-index: 3000; text-shadow: 2px 2px 0px #000;
+        }
+
+        #controls { position: fixed; bottom: 0; width: 100%; height: 110px; display: flex; gap: 10px; padding: 15px; box-sizing: border-box; background: #000; z-index: 1001; }
+        
+        /* EFEKT KLIKNIĘCIA DLA PRZYCISKÓW */
+        .btn { 
+            flex: 1; border: none; font-family: 'Game Of Squids'; color: white; 
+            border-radius: 5px; cursor: pointer; transition: transform 0.1s, filter 0.1s;
+            outline: none; -webkit-tap-highlight-color: transparent;
+        }
+        .btn:active { 
+            transform: scale(0.92); /* Zmniejszenie przy kliknięciu */
+            filter: brightness(1.5); /* Rozjaśnienie */
+        }
+
+        @keyframes floatUp { 0% { transform: translateY(0) scale(1); opacity: 1; } 100% { transform: translateY(-100px) scale(1.2); opacity: 0; } }
+        @keyframes shake { 0% { transform: translate(0,0); } 25% { transform: translate(5px,5px); } 50% { transform: translate(-5px, -5px); } 100% { transform: translate(0,0); } }
+        .shake { animation: shake 0.2s; }
+    </style>
+</head>
+<body id="body">
+
+<div id="ocean">
+    <div id="hud">
+        <div class="hud-stats">
+            <div>KASA: <b id="cash">1000$</b></div>
+            <div>LADUNEK: <b id="cargo">0/20</b></div>
+        </div>
+        <div id="fever-bar-container"><div id="fever-bar"></div></div>
+    </div>
+    <div id="rod"></div>
+    <div id="hook"></div>
+    <div id="tank"></div>
+    <div id="controls">
+        <button class="btn" style="background:#222;" onclick="game.sell()">SPRZEDAJ</button>
+        <button id="shoot-btn" class="btn" style="background:var(--accent); flex:2; box-shadow: 0 0 10px var(--accent);" onclick="game.shoot()">ZARZUC</button>
+        <button class="btn" style="background:#111; border:1px solid var(--accent)" onclick="game.toggleShop(true)">SKLEP</button>
+    </div>
+</div>
+
+<div id="shop-ui">
+    <div id="shop-tabs"></div>
+    <div id="shop-list"></div>
+    <button onclick="game.toggleShop(false)" style="padding:15px; background:#000; color:white; border:none; font-family:'Game Of Squids'">POWROT</button>
+</div>
+
+<script>
+    const save = JSON.parse(localStorage.getItem('squid_fever_v4')) || { cash: 1000, midas: 1, limit: 20, speed: 1000 };
+    const state = { ...save, inv: [], angle: 0, dir: 1, shooting: false, fever: 0, isFever: false };
+
+    const game = {
+        save() { localStorage.setItem('squid_fever_v4', JSON.stringify({ cash: state.cash, midas: state.midas, limit: state.limit, speed: state.speed })); },
+        
+        init() {
+            const tabs = document.getElementById('shop-tabs');
+            const icons = ["○", "△", "□"];
+            for(let i=0; i<30; i++) {
+                const b = document.createElement('button');
+                b.className = 'tab' + (i===0?' active':'');
+                b.innerText = `${icons[i%3]} SEKTOR ${i+1}`;
+                b.onclick = () => { document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active')); b.classList.add('active'); this.render(i); };
+                tabs.appendChild(b);
+            }
+            this.loop(); 
+            setInterval(() => this.spawn(), 1000);
+            this.updateHUD();
+        },
+
+        spawn() {
+            const f = document.createElement('div'); 
+            f.className = 'fish';
+            const r = Math.random();
+            
+            if (state.isFever) {
+                f.innerText = '💰'; f.dataset.v = 2000; f.classList.add('gold-fish');
+            } else {
+                if (r < 0.05) { f.innerText = '💎'; f.dataset.v = 10000; }
+                else if (r < 0.2) { f.innerText = '🦈'; f.dataset.v = 2500; }
+                else { f.innerText = '🐟'; f.dataset.v = 500; }
+            }
+
+            let side = Math.random() > 0.5;
+            let startX = side ? -80 : window.innerWidth + 80;
+            let startY = 150 + Math.random() * (window.innerHeight - 350);
+            
+            f.style.left = startX + "px";
+            f.style.top = startY + "px";
+            if (side) f.style.transform = "scaleX(-1)";
+
+            document.getElementById('tank').appendChild(f);
+            let posX = startX;
+            let speed = (state.isFever ? 4 : 2.5) * (side ? 1 : -1);
+
+            const move = () => {
+                if(!f.parentElement) return;
+                posX += speed;
+                f.style.left = posX + "px";
+                if(posX < -150 || posX > window.innerWidth + 150) f.remove();
+                else requestAnimationFrame(move);
+            };
+            move();
+        },
+
+        shoot() {
+            if(state.shooting || state.inv.length >= state.limit) return;
+            state.shooting = true;
+            const h = document.getElementById('hook'); h.style.display = "block";
+            let d = 0, rad = state.angle * (Math.PI/180);
+            
+            const anim = setInterval(() => {
+                d += (state.isFever ? state.speed/15 : state.speed/30);
+                let x = (window.innerWidth/2) + Math.sin(rad)*d, y = (window.innerHeight-130) - Math.cos(rad)*d;
+                h.style.left = (x-15)+"px"; h.style.top = (y-15)+"px";
+                
+                const fishes = document.getElementsByClassName('fish');
+                for(let f of fishes) {
+                    let fx = parseFloat(f.style.left), fy = parseFloat(f.style.top);
+                    if(Math.hypot(x-(fx+20), y-(fy+20)) < 35) {
+                        const val = parseInt(f.dataset.v);
+                        state.inv.push(val);
+                        this.onCatch(fx, fy, val);
+                        f.remove(); clearInterval(anim); this.reset(); break;
+                    }
+                }
+                if(y<70 || x<0 || x>window.innerWidth || d>1500) { clearInterval(anim); this.reset(); }
+            }, 16);
+        },
+
+        onCatch(x, y, v) {
+            if (!state.isFever) {
+                state.fever += 15;
+                if (state.fever >= 100) this.startFever();
+            }
+            if (v >= 2500) {
+                document.getElementById('ocean').classList.add('shake');
+                setTimeout(() => document.getElementById('ocean').classList.remove('shake'), 200);
+            }
+            this.showPrice(x, y, v);
+            this.updateHUD();
+        },
+
+        startFever() {
+            state.isFever = true; state.fever = 100;
+            document.body.classList.add('fever-active');
+            let timer = setInterval(() => {
+                state.fever -= 1; this.updateHUD();
+                if (state.fever <= 0) {
+                    state.isFever = false; document.body.classList.remove('fever-active');
+                    clearInterval(timer);
+                }
+            }, 100);
+        },
+
+        showPrice(x, y, v) {
+            const p = document.createElement('div'); p.className = 'floating-price';
+            const total = v * state.midas * (state.isFever ? 5 : 1);
+            p.innerText = `+${this.format(total)}$`;
+            p.style.color = state.isFever ? "var(--gold)" : "var(--goo)";
+            p.style.left = x + "px"; p.style.top = y + "px";
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 1000);
+        },
+
+        format(n) {
+            if (n >= 1e9) return (n/1e9).toFixed(1) + "B";
+            if (n >= 1e6) return (n/1e6).toFixed(1) + "M";
+            return n.toLocaleString();
+        },
+
+        render(idx) {
+            const list = document.getElementById('shop-list');
+            const cost = Math.floor(3000 * Math.pow(1.9, idx));
+            list.innerHTML = `<div class="item"><div><b>KONTRAKT ${idx+1}</b><br><small>MNOZNIK X${idx+5}</small></div><button class="btn" style="background:var(--goo);color:black;padding:10px" onclick="game.buy(${cost}, ${idx+5})">${this.format(cost)}$</button></div>`;
+        },
+
+        buy(p, b) {
+            if(state.cash >= p) {
+                state.cash -= p; state.midas += b; state.speed += 20;
+                this.save(); this.updateHUD();
+            }
+        },
+
+        loop() {
+            if(!state.shooting) {
+                state.angle += (state.isFever ? 5 : 2.8) * state.dir;
+                if(Math.abs(state.angle) > 75) state.dir *= -1;
+                document.getElementById('rod').style.transform = `rotate(${state.angle}deg)`;
+            }
+            requestAnimationFrame(() => this.loop());
+        },
+
+        reset() { state.shooting = false; document.getElementById('hook').style.display="none"; this.updateHUD(); },
+        sell() { state.cash += state.inv.reduce((a,b)=>a+b,0) * state.midas; state.inv = []; this.save(); this.updateHUD(); },
+        updateHUD() {
+            document.getElementById('cash').innerText = this.format(state.cash) + "$";
+            document.getElementById('cargo').innerText = state.inv.length + "/" + state.limit;
+            document.getElementById('fever-bar').style.width = state.fever + "%";
+        },
+        toggleShop(s) { document.getElementById('shop-ui').style.display = s?'flex':'none'; if(s) this.render(0); }
+    };
+    game.init();
+</script>
+</body>
+</html>
